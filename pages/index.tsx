@@ -2,6 +2,8 @@
 import { useState } from 'react';
 import { ethers } from 'ethers';
 import Web3 from 'web3';
+import { abi as erc20Abi } from '../abi/erc20.json';
+import { abi as uniswapAbi } from '../abi/uniswap.json';
 
 export default function Home() {
   const [inputToken, setInputToken] = useState('');
