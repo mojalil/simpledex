@@ -1,24 +1,42 @@
-import { useState } from "react";
-import { ethers } from "ethers";
+import { useState, useEffect } from "react";
 import Web3 from "web3";
+import { ethers } from "ethers";
+import { Client } from "@notionhq/client";
+
 import { abi as erc20Abi } from "../abi/erc20.json";
 import { abi as uniswapAbi } from "../abi/uniswap.json";
+
+const notion = new Client({ auth: process.env.NOTION_API_KEY });
 
 export default function Home() {
   const [inputToken, setInputToken] = useState("");
   const [outputToken, setOutputToken] = useState("");
+  const [outputMessage, setOutputMessage] = useState("");
+  const [points, setPoints] = useState(0);
+  const [history, setHistory] = useState([]);
+  const [name, setName] = useState("");
+
+  useEffect(() => {
+    fetch(`/api/get-user?name=${encodeURIComponent(name)}`)
+      .then((response) => response.json())
+      .then((data) => {
+        setPoints(data.points);
+        setHistory(data.history);
+      });
+  }, [name]);
+
+
 
   async function handleSwap() {
-    const web3 = new Web3(Web3.givenProvider || "http://localhost:8545");
+    const web3 = new Web3(Web3.givenProvider);
     const accounts = await web3.eth.getAccounts();
     const signer = new ethers.providers.Web3Provider(
       window.ethereum
     ).getSigner();
-
-    const inputTokenAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
-    const outputTokenAddress = "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599"; // TODO
-    const inputTokenAmount = "1000000000000000000"; // TODO
-    const outputTokenAmount = "1000000000000000000"; // TODO
+    const inputTokenAddress = ""; // TODO: Add input token address
+    const outputTokenAddress = ""; // TODO: Add output token address
+    const inputTokenAmount = ""; // TODO: Add input token amount
+    const outputTokenAmount = ""; // TODO: Add output token amount
 
     const inputTokenContract = new ethers.Contract(
       inputTokenAddress,
@@ -34,7 +52,7 @@ export default function Home() {
 
     const inputTokenBalance = await inputTokenContract.balanceOf(accounts[0]);
     if (inputTokenBalance.lt(inputTokenAmount)) {
-      alert("Insufficient input token balance");
+      setOutputMessage("Insufficient input token balance");
       return;
     }
 
@@ -59,50 +77,131 @@ export default function Home() {
       deadline,
       { value: ethers.utils.parseEther("0.1") }
     );
+
+    setOutputMessage(
+      `Swapped ${inputTokenAmount} ${inputToken} for ${outputTokenAmount} ${outputToken}. You earned ${points} points!`
+    );
+    handlePoints();
+
+    const swapHistory = `${inputTokenAmount} ${inputToken} for ${outputTokenAmount} ${outputToken}`;
+    setHistory([...history, swapHistory]);
+    fetch(
+      `/api/update-history?name=${encodeURIComponent(
+        name
+      )}&history=${encodeURIComponent(swapHistory)}`
+    )
+      .then((response) => response.json())
+      .then((data) => console.log(data));
+  }
+
+  function handleNameChange(e) {
+    setName(e.target.value);
+  }
+
+  function handlePoints() {
+    const newPoints = points + 1;
+    setPoints(newPoints);
+    fetch(
+      `/api/update-points?name=${encodeURIComponent(name)}&points=${newPoints}`
+    )
+      .then((response) => response.json())
+      .then((data) => console.log(data));
+  }
+
+  function handleDarkMode() {
+    const body = document.querySelector("body");
+    body?.classList.toggle("dark-mode");
+    // In dark mode the text cannot be seen, update text color for dark mode
+    const container = document.querySelector(".container");
+    container?.classList.toggle("dark-mode");
+
+  }
+
+  async function handleConnectWallet() {
+    try {
+      await window.ethereum.enable();
+      setOutputMessage("Wallet connected successfully");
+    } catch (error) {
+      setOutputMessage("Error connecting wallet");
+    }
   }
 
   return (
-    <div>
-      <h1>Simple Dex</h1>
-      <label htmlFor="inputToken">Input Token:</label>
-      <input
-        id="inputToken"
-        type="text"
-        value={inputToken}
-        onChange={(e) => setInputToken(e.target.value)}
-      />
-      <br />
-      <label htmlFor="outputToken">Output Token:</label>
-      <input
-        id="outputToken"
-        type="text"
-        value={outputToken}
-        onChange={(e) => setOutputToken(e.target.value)}
-      />
-      <br />
-      <button onClick={handleSwap}>Swap</button>
-      <style jsx>{`
-        label {
-          display: block;
-          margin-bottom: 0.5rem;
-        }
-        input {
-          display: block;
-          margin-bottom: 1rem;
-          padding: 0.5rem;
-          border: 1px solid #ddd;
-          border-radius: 3px;
-          width: 100%;
-        }
-        button {
-          padding: 0.5rem 1rem;
-          background-color: #4caf50;
-          color: #fff;
-          border: none;
-          border-radius: 3px;
-          cursor: pointer;
-        }
-      `}</style>
+    <div className="container">
+      <header>
+        <h1 className="main-title">Simple DEX</h1>
+        <>
+          A work in progress simple dex, check the repo for abi and smart
+          contract as we continue to build
+        </>
+
+        {/* Add an empty new line*/}
+        <br />
+        <br />
+        <div className="header-buttons">
+          <button
+            className="button connect-wallet"
+            onClick={handleConnectWallet}
+          >
+            Connect Wallet
+          </button>
+          <button className="button dark-mode" onClick={handleDarkMode}>
+            Dark Mode
+          </button>
+        </div>
+      </header>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleSwap();
+        }}
+      >
+        <label htmlFor="name">Name:</label>
+        <input
+          id="name"
+          type="text"
+          value={name}
+          onChange={handleNameChange}
+          className="form-input"
+        />
+        <label htmlFor="inputToken">Input Token:</label>
+        <input
+          id="inputToken"
+          type="text"
+          value={inputToken}
+          onChange={(e) => setInputToken(e.target.value)}
+          className="form-input"
+        />
+        <label htmlFor="outputToken">Output Token:</label>
+        <input
+          id="outputToken"
+          type="text"
+          value={outputToken}
+          onChange={(e) => setOutputToken(e.target.value)}
+          className="form-input"
+        />
+        <button type="submit" className="button swap-button">
+          Swap
+        </button>
+      </form>
+      {outputMessage && (
+        <div className="output">
+          <h2>Output Message:</h2>
+          <p>{outputMessage}</p>
+        </div>
+      )}
+      <div className="points">
+        <h2>Points:</h2>
+        <p>{points}</p>
+      </div>
+      <div className="history">
+        <h2>History:</h2>
+        <ul>
+          {history.map((item, index) => (
+            <li key={index}>{item}</li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }
